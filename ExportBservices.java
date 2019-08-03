@@ -117,11 +117,11 @@ public class ExportBservices {
 	
 	private static void cleanupFilesAndMetadataWhenCrash (String sDate){
 
-		cleanMetadata (sDate);
+		//cleanMetadata (sDate);
 
 		try {
 			File csvDir  = new File(csv_temporary_local_dir);   
-			String[] csvFiles;    
+			String[] csvFiles = null;    
 			if (csvDir.isDirectory()) {
 				csvFiles = csvDir.list();
 				for (int i = 0; i < csvFiles.length; i++) {
@@ -136,9 +136,11 @@ public class ExportBservices {
 			String[] pdfFiles;    
 			if (pdfDir.isDirectory()) {
 				pdfFiles = pdfDir.list();
-				for (int i = 0; i < pdfFiles.length; i++) {
-					SmbFile deleteFile = new SmbFile(pdfDir.getPath()+SMBFileSeparator+ pdfFiles[i]); 
-					deleteFile.delete();
+				if (csvFiles != null && csvFiles.length >0){
+					for (int i = 0; i < pdfFiles.length; i++) {
+						SmbFile deleteFile = new SmbFile(pdfDir.getPath()+SMBFileSeparator+ pdfFiles[i]); 
+						deleteFile.delete();
+					}
 				}
 			}else {
 				logger.error("Não foi possível apagar os ficheiros nas directorias após ter ocorrido um erro critico. POr favor verifique as directorias e proceda a uma limpeza manual dos ficheiros");
@@ -761,50 +763,89 @@ public class ExportBservices {
 				
 			}
 			
-			private boolean MakeCsvFile(String sDate, File excelFile, File [] pdffiles, String requerente, String fillingNumber, String authorityProcessIdentification,
-					String applicationTypeEnumType, String applicationNumber, String DestPath) throws IOException, SQLException, ClassNotFoundException{
+			private void MakeCsvFile(String sDate, File excelFile, File [] pdffiles, String requerente, String fillingNumber, String authorityProcessIdentification,
+					String applicationTypeEnumType, String applicationNumber, String DestPath) throws IOException, SQLException, ClassNotFoundException, Exception{
 				
-				boolean FirstTimeExcelProcessed = true;
-				String csvFilename = excelFile.getName().substring(0,excelFile.getName().lastIndexOf('.'))+".csv";
-				File csvFile = null ;
-				csvFile = new File(csv_temporary_local_dir+File.separator+System.currentTimeMillis()+csvFilename);
 				BufferedWriter output = null;
-				output = new BufferedWriter(new FileWriter(csvFile));
-				output.write("requerente,fillingNumber,authorityProcessIdentification,applicationTypeEnumType,applicationNumber,documentSequence,lastDocumentSequence,filename,comment,documentDetailsEnumtype");
-				output.newLine();
-				String yearMonth = sDate.substring(0,6);
-				String entity = getEntity(requerente);
-				String doc_path = "/"+yearMonth +"/"+authorityProcessIdentification;
-				for (int i=0; i< pdffiles.length;i++){
-					long extension = System.currentTimeMillis();
-					insertpdfFileExtension (pdffiles[i].getName(), extension);	
-					String rowDataStr = requerente+","+fillingNumber+","+authorityProcessIdentification+","+ applicationTypeEnumType+
-								","+applicationNumber+","+i+1+","+pdffiles.length+","+extension+"#"+pdffiles[i].getName()+",,"+"OTHER";
-					output.write(rowDataStr);
+				boolean FirstTimeExcelProcessed = true;
+				File csvFile = null ;
+				try{
+					
+					String csvFilename = excelFile.getName().substring(0,excelFile.getName().lastIndexOf('.'))+".csv";
+					
+					csvFile = new File(csv_temporary_local_dir+File.separator+System.currentTimeMillis()+csvFilename);
+					
+					output = new BufferedWriter(new FileWriter(csvFile));
+					String csvHeader ="requerente,fillingNumber,authorityProcessIdentification,applicationTypeEnumType,applicationNumber,documentSequence,lastDocumentSequence,filename,comment,documentDetailsEnumtype";
+					output.write(csvHeader); 
 					output.newLine();
-					System.out.println(rowDataStr);
-					if (insertMetadataIntoBD(requerente, fillingNumber, authorityProcessIdentification, applicationTypeEnumType,
-							applicationNumber,Integer.toString(i+1),Integer.toString(pdffiles.length),pdffiles[i].getName(),"","OTHER",
-							entity,doc_path,yearMonth,sDate).equals("OK")){
-						
-						FirstTimeExcelProcessed = true;
-						HandlePdfFile(excelFile, entity, authorityProcessIdentification, pdffiles[i].getName(), yearMonth, DestPath, sDate);
+					System.out.println(csvHeader);
+					String yearMonth = sDate.substring(0,6);
+					String entity = getEntity(requerente);
+					String doc_path = "/"+yearMonth +"/"+authorityProcessIdentification;
+					for (int i=0; i< pdffiles.length;i++){
+						long extension = System.currentTimeMillis();
+						insertpdfFileExtension (pdffiles[i].getName(), extension);	
+						String rowDataStr = requerente+","+fillingNumber+","+authorityProcessIdentification+","+ applicationTypeEnumType+
+						","+applicationNumber+","+(i+1)+","+pdffiles.length+","+extension+"#"+pdffiles[i].getName()+",,"+"OTHER";
+						output.write(rowDataStr);
+						output.newLine();
+						System.out.println(rowDataStr);
+						if (insertMetadataIntoBD(requerente, fillingNumber, authorityProcessIdentification, applicationTypeEnumType,
+								applicationNumber,Integer.toString(i+1),Integer.toString(pdffiles.length),pdffiles[i].getName(),"","OTHER",
+								entity,doc_path,yearMonth,sDate).equals("OK")){
 
-						System.out.println("entity: " +entity + " Process number: " + authorityProcessIdentification);
-						logger.info("Bservices entity: " + entity + " Process number: " + authorityProcessIdentification);
-						System.out.println("File processed OK: " + pdffiles[i].getName());
-						logger.info("Bservices File Processed OK: " + pdffiles[i].getName());
+							FirstTimeExcelProcessed = true;
+							HandlePdfFile(excelFile, entity, authorityProcessIdentification, pdffiles[i].getName(), yearMonth, DestPath, sDate);
 
-					} else {
-						FirstTimeExcelProcessed =false ;
-						System.out.println("Este ficheiro excel já foi processado no dia em que foi submetido. Se alterou alguma coisa no excel ou on ofício em pdf, por favor volte a inserir no dia seguinte: "
-								+ entity + " Process number: " + authorityProcessIdentification + " filename: " + pdffiles[i].getName());
-						logger.info("Bservice: Este ficheiro excel já foi processado no dia em que foi submetido. Se alterou alguma coisa no excel ou on ofício em pdf, por favor volte a inserir no dia seguinte: "
-								+ entity + " Process number: " + authorityProcessIdentification + " filename: " + pdffiles[i].getName());
+							System.out.println("entity: " +entity + " Process number: " + authorityProcessIdentification);
+							logger.info("Bservices entity: " + entity + " Process number: " + authorityProcessIdentification);
+							System.out.println("File processed OK: " + pdffiles[i].getName());
+							logger.info("Bservices File Processed OK: " + pdffiles[i].getName());
+
+						} else {
+							FirstTimeExcelProcessed =false ;
+							System.out.println("Este ficheiro excel já foi processado no dia em que foi submetido. Se alterou alguma coisa no excel ou on ofício em pdf, por favor volte a inserir no dia seguinte: "
+									+ entity + " Process number: " + authorityProcessIdentification + " filename: " + pdffiles[i].getName());
+							logger.info("Bservice: Este ficheiro excel já foi processado no dia em que foi submetido. Se alterou alguma coisa no excel ou on ofício em pdf, por favor volte a inserir no dia seguinte: "
+									+ entity + " Process number: " + authorityProcessIdentification + " filename: " + pdffiles[i].getName());
+							Exception e = new Exception();
+							throw e;
+						}
 					}
 				}
-				
-				return FirstTimeExcelProcessed;
+				catch (FileNotFoundException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					logger.error("Bservices ERRO: Ficheiro não encontrado");
+					throw e ;
+					
+				}
+				catch (IOException e){
+					e.printStackTrace();
+					logger.error("Bservices ERRO: problema de IO");
+					throw e ;
+				}
+				catch (Exception e){
+					e.printStackTrace();
+					logger.error("Bservices ERRO: Erro de processamento: verificar se batch ja tinha sido processado anteriormente");
+					throw e ;
+				}finally {
+					if ( output != null ) {
+						try{
+							output.flush();
+							output.close();
+							if (!FirstTimeExcelProcessed){
+								csvFile.delete();
+							}
+						}
+						catch(IOException e){
+							e.printStackTrace(); 
+							logger.error("Bservices ERRO: problema de IO");
+							throw e ;
+						}
+					}
+				}
 			}
 			
 			private boolean isNumeric(String str) { 
@@ -817,23 +858,17 @@ public class ExportBservices {
 				}
 
 			private void processExcelFile(File file, String sDate, String DestPath )
-					throws UserNotDefinedException, ProcessNumberEmptyException, IOException, SQLException, ClassNotFoundException, FileNotFoundException {
+					throws UserNotDefinedException, ProcessNumberEmptyException, IOException, SQLException, ClassNotFoundException, FileNotFoundException, Exception{
 
 				Workbook workbook = null;
 				org.apache.poi.ss.usermodel.Sheet sheet;
-				Iterator<Row> rowIterator;
-				File outputfile = null ;
-				BufferedWriter output = null;
-				boolean FirstTimeExcelProcessed = true;
 
 				try {
 					File parentDir = file.getParentFile();
 					File [] pdffiles=getPdfFilesFromDir(parentDir);
-					int nrPdfFiles= pdffiles.length;
 					
 					FileInputStream fileInputStream;
-					outputfile = new File(csv_temporary_local_dir+File.separator+System.currentTimeMillis()+file.getName().substring(0,file.getName().lastIndexOf('.'))+".csv");
-					output = new BufferedWriter(new FileWriter(outputfile));
+
 
 					fileInputStream = new FileInputStream(file);
 					String fileExtension = file.getName().substring(file.getName().lastIndexOf("."));
@@ -849,7 +884,6 @@ public class ExportBservices {
 						System.out.println("Wrong File Type");
 						logger.info("Bservices: Something is wrong with the Excel file");
 					} 
-					FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
 					sheet = workbook.getSheetAt(0);
 					Boolean excelError = false ;
 					if (sheet.getLastRowNum() ==0){
@@ -892,9 +926,9 @@ public class ExportBservices {
 							String fillingNumber = row.getCell(1).getStringCellValue();
 							String authorityProcessIdentification = ReplaceInvalidChars(row.getCell(2).getStringCellValue());
 							String applicationTypeEnumType = row.getCell(3).getStringCellValue();
-							int applicationNumber = (int)row.getCell(4).getNumericCellValue();
-							FirstTimeExcelProcessed = MakeCsvFile(sDate,file, pdffiles, requerente, fillingNumber, authorityProcessIdentification, applicationTypeEnumType,
-									Integer.toString(applicationNumber),DestPath);
+							long applicationNumber = (long)row.getCell(4).getNumericCellValue();
+							MakeCsvFile(sDate,file, pdffiles, requerente, fillingNumber, authorityProcessIdentification, applicationTypeEnumType,
+									Long.toString(applicationNumber),DestPath);
 							
 						} else {
 							logger.error("Bservices: Excel file -> Ficheiro Excel com dados incompletos");
@@ -914,20 +948,6 @@ public class ExportBservices {
 					e.printStackTrace();
 					logger.error("Bservices ERRO: problema de IO");
 					throw e ;
-				}finally {
-					if ( output != null ) {
-						try{
-							output.close();
-							if (!FirstTimeExcelProcessed){
-								outputfile.delete();
-							}
-						}
-						catch(IOException e){
-							e.printStackTrace(); 
-							logger.error("Bservices ERRO: problema de IO");
-							throw e ;
-						}
-					}
 				}
 			}
 			
